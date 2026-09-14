@@ -5,29 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تسجيل الحضور</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 45px 20px;
-      background: #f7f7f7;
-      color: #222;
-    }
-    .box {
-      max-width: 420px;
-      margin: auto;
-      background: white;
-      padding: 30px 20px;
-      border-radius: 18px;
-      box-shadow: 0 3px 15px rgba(0,0,0,.08);
-    }
-    h1 { font-size: 26px; }
-    #status { font-size: 18px; line-height: 1.7; }
+    body{font-family:Arial,sans-serif;text-align:center;padding:45px 20px;background:#f7f7f7;color:#222}
+    .box{max-width:420px;margin:auto;background:white;padding:30px 20px;border-radius:18px;box-shadow:0 3px 15px rgba(0,0,0,.08)}
+    h1{font-size:26px}
+    #status{font-size:18px;line-height:1.7}
   </style>
 </head>
 <body>
 <div class="box">
   <h1>تسجيل الحضور</h1>
-  <p id="status">جاري التحقق من موقعك...</p>
+  <p id="status">جاري طلب الوصول إلى موقعك...</p>
 </div>
 
 <script>
@@ -38,58 +25,54 @@ const OFFICE_LAT = 33.4938497;
 const OFFICE_LNG = 36.2862717;
 const ALLOWED_RADIUS = 100;
 
-const params = new URLSearchParams(window.location.search);
-const engineer = params.get("engineer");
-
+const engineer = new URLSearchParams(location.search).get("engineer");
 const status = document.getElementById("status");
 
 function distanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
   const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) *
+    Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 if (!engineer) {
-  status.innerHTML = "❌ رابط غير صالح.";
+  status.textContent = "❌ رابط غير صالح.";
 } else if (!navigator.geolocation) {
-  status.innerHTML = "❌ جهازك لا يدعم تحديد الموقع.";
+  status.textContent = "❌ جهازك لا يدعم تحديد الموقع.";
 } else {
   navigator.geolocation.getCurrentPosition(
-    function(position) {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const distance = distanceMeters(
-        lat, lng, OFFICE_LAT, OFFICE_LNG
-      );
+    function(pos) {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const distance = distanceMeters(lat,lng,OFFICE_LAT,OFFICE_LNG);
 
       if (distance > ALLOWED_RADIUS) {
         status.innerHTML =
           "❌ لم يتم تسجيل الحضور.<br>" +
-          "أنت خارج نطاق موقع العمل.<br>" +
+          "أنت خارج موقع العمل.<br>" +
           "المسافة التقريبية: " + Math.round(distance) + " متر";
         return;
       }
 
-      status.innerHTML = "📍 تم التحقق من الموقع، جاري التسجيل...";
+      status.textContent = "📍 تم التحقق من الموقع، جاري التسجيل...";
 
-      const target =
+      const url =
         APPS_SCRIPT_URL +
         "?engineer=" + encodeURIComponent(engineer) +
         "&lat=" + encodeURIComponent(lat) +
         "&lng=" + encodeURIComponent(lng);
 
-      window.location.href = target;
+      window.location.replace(url);
     },
     function(error) {
       status.innerHTML =
-        "❌ لم نتمكن من الحصول على موقعك.<br>" +
-        "يرجى السماح بالوصول إلى الموقع ثم إعادة مسح QR.";
+        "❌ يجب السماح بالوصول إلى الموقع حتى يتم تسجيل الحضور.<br>" +
+        "إذا كنت قد رفضت الإذن، فعّله من إعدادات المتصفح ثم أعد مسح QR.";
     },
     {
       enableHighAccuracy: true,
