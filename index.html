@@ -188,6 +188,7 @@ function startLocationCheck() {
   status.innerHTML =
     "📍 جارٍ تحديد موقعك...";
 
+
   if (!navigator.geolocation) {
 
     status.innerHTML =
@@ -270,7 +271,7 @@ function startLocationCheck() {
 
 
 /* =========================
-   Google Login
+   Google Login - Redirect
 ========================= */
 
 function showGoogleLogin() {
@@ -293,11 +294,43 @@ function showGoogleLogin() {
   }
 
 
+  /*
+   * نحفظ معلومات المهندس والموقع داخل state
+   * حتى تصل إلى Apps Script بعد تسجيل الدخول.
+   */
+
+  const stateData = JSON.stringify({
+
+    engineer: engineer,
+
+    lat: userLat,
+
+    lng: userLng
+
+  });
+
+
+  /*
+   * تحويل البيانات إلى Base64
+   */
+
+  const state =
+    btoa(
+      unescape(
+        encodeURIComponent(stateData)
+      )
+    );
+
+
   google.accounts.id.initialize({
 
     client_id: GOOGLE_CLIENT_ID,
 
-    callback: handleGoogleLogin
+    ux_mode: "redirect",
+
+    login_uri: APPS_SCRIPT_URL,
+
+    state: state
 
   });
 
@@ -315,95 +348,6 @@ function showGoogleLogin() {
     }
 
   );
-
-}
-
-
-/* =========================
-   بعد تسجيل الدخول
-========================= */
-
-function handleGoogleLogin(response) {
-
-  status.innerHTML =
-    "🔐 تم تسجيل الدخول.<br>" +
-    "جارٍ التحقق من الحساب...";
-
-
-  /*
-   * إرسال البيانات إلى Apps Script
-   * باستخدام POST
-   */
-
-  const form =
-    document.createElement("form");
-
-  form.method = "POST";
-
-  form.action = APPS_SCRIPT_URL;
-
-
-  /* المهندس */
-
-  addField(
-    form,
-    "engineer",
-    engineer
-  );
-
-
-  /* GPS */
-
-  addField(
-    form,
-    "lat",
-    userLat
-  );
-
-
-  addField(
-    form,
-    "lng",
-    userLng
-  );
-
-
-  /* Google ID Token */
-
-  addField(
-    form,
-    "credential",
-    response.credential
-  );
-
-
-  document.body.appendChild(form);
-
-  form.submit();
-
-}
-
-
-/* =========================
-   إضافة حقل POST
-========================= */
-
-function addField(
-  form,
-  name,
-  value
-) {
-
-  const input =
-    document.createElement("input");
-
-  input.type = "hidden";
-
-  input.name = name;
-
-  input.value = value;
-
-  form.appendChild(input);
 
 }
 
