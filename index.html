@@ -2,18 +2,12 @@
 <html lang="ar" dir="rtl">
 
 <head>
-
   <meta charset="UTF-8">
 
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0">
 
-  <title>نظام الحضور</title>
-
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client"
-          async
-          defer></script>
+  <title>اختبار Face ID</title>
 
   <style>
 
@@ -44,13 +38,19 @@
       line-height: 1.8;
     }
 
-    #googleLogin {
+    button {
       margin-top: 25px;
-      display: none;
+      padding: 15px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      background: #007aff;
+      color: white;
+      cursor: pointer;
     }
 
-    .loading {
-      font-size: 18px;
+    button:disabled {
+      opacity: .5;
     }
 
   </style>
@@ -64,11 +64,15 @@
 
   <h1>نظام تسجيل الحضور</h1>
 
-  <p id="status" class="loading">
+  <p id="status">
     جارٍ التحقق من موقعك...
   </p>
 
-  <div id="googleLogin"></div>
+  <button id="faceButton"
+          style="display:none"
+          onclick="testFaceID()">
+    🔐 التحقق باستخدام Face ID
+  </button>
 
 </div>
 
@@ -77,16 +81,8 @@
 
 
 /* =========================
-   الإعدادات
+   إعدادات الموقع
 ========================= */
-
-const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxaWPeJ0h5wvbuQgj73v2PittxpgDkkiOxwtOPLRmXmOjuxjjAxIGSLVukOfoLxr6C6/exec";
-
-
-const GOOGLE_CLIENT_ID =
-  "253181627076-bifbqp4qko3m5dj1srk9a7pigvs4bfb.apps.googleusercontent.com";
-
 
 const OFFICE_LAT = 33.4938497;
 
@@ -106,19 +102,12 @@ const status =
   document.getElementById("status");
 
 
-const googleLogin =
-  document.getElementById("googleLogin");
-
-
-/* إحداثيات المستخدم */
-
-let userLat = null;
-
-let userLng = null;
+const faceButton =
+  document.getElementById("faceButton");
 
 
 /* =========================
-   التأكد من QR
+   التأكد من وجود QR
 ========================= */
 
 if (!engineer) {
@@ -203,10 +192,10 @@ function startLocationCheck() {
 
     function(position) {
 
-      userLat =
+      const userLat =
         position.coords.latitude;
 
-      userLng =
+      const userLng =
         position.coords.longitude;
 
 
@@ -219,13 +208,10 @@ function startLocationCheck() {
         );
 
 
-      /* خارج موقع العمل */
-
       if (distance > ALLOWED_RADIUS) {
 
         status.innerHTML =
-          "❌ لم يتم تسجيل الحضور.<br><br>" +
-          "أنت خارج موقع العمل.<br>" +
+          "❌ أنت خارج موقع العمل.<br><br>" +
           "المسافة التقريبية: " +
           Math.round(distance) +
           " متر";
@@ -235,17 +221,19 @@ function startLocationCheck() {
       }
 
 
-      /* داخل الموقع */
-
       status.innerHTML =
         "📍 تم التحقق من موقعك بنجاح.<br>" +
         "المسافة: " +
         Math.round(distance) +
         " متر<br><br>" +
-        "🔐 يرجى تسجيل الدخول بحساب Google الخاص بك.";
+        "👤 المهندس: " +
+        engineer +
+        "<br><br>" +
+        "اضغط الزر لتجربة Face ID.";
 
 
-      showGoogleLogin();
+      faceButton.style.display =
+        "inline-block";
 
     },
 
@@ -254,7 +242,7 @@ function startLocationCheck() {
 
       status.innerHTML =
         "❌ تعذر الوصول إلى موقعك.<br><br>" +
-        "تأكد من السماح للموقع لهذا المتصفح ثم أعد المحاولة.";
+        "تأكد من السماح للموقع ثم أعد المحاولة.";
 
     },
 
@@ -271,185 +259,134 @@ function startLocationCheck() {
 
 
 /* =========================
-   تحويل النص إلى Base64
-   مع دعم اللغة العربية
+   اختبار Face ID
 ========================= */
 
-function encodeState(data) {
+async function testFaceID() {
 
-  const json =
-    JSON.stringify(data);
+  try {
 
-  const bytes =
-    new TextEncoder().encode(json);
+    if (
+      !window.PublicKeyCredential
+    ) {
 
-  let binary = "";
+      status.innerHTML =
+        "❌ هذا المتصفح لا يدعم Passkey / Face ID.";
 
-  bytes.forEach(function(byte) {
+      return;
 
-    binary +=
-      String.fromCharCode(byte);
-
-  });
-
-  return btoa(binary);
-
-}
+    }
 
 
-/* =========================
-   Google Login - HTML API
-========================= */
-
-function showGoogleLogin() {
-
-  googleLogin.style.display =
-    "block";
+    status.innerHTML =
+      "🔐 جارٍ تشغيل Face ID...";
 
 
-  if (
-    typeof google === "undefined" ||
-    !google.accounts ||
-    !google.accounts.id
-  ) {
+    faceButton.disabled = true;
 
-    setTimeout(
-      showGoogleLogin,
-      500
-    );
 
-    return;
+    /*
+     * Challenge تجريبي.
+     * هذا الاختبار فقط للتأكد أن Face ID
+     * يعمل من موقعنا.
+     */
+
+    const challenge =
+      crypto.getRandomValues(
+        new Uint8Array(32)
+      );
+
+
+    const userId =
+      crypto.getRandomValues(
+        new Uint8Array(16)
+      );
+
+
+    const credential =
+      await navigator.credentials.create({
+
+        publicKey: {
+
+          challenge: challenge,
+
+          rp: {
+            name: "نظام تسجيل الحضور"
+          },
+
+          user: {
+
+            id: userId,
+
+            name: engineer,
+
+            displayName: engineer
+
+          },
+
+          pubKeyCredParams: [
+
+            {
+              type: "public-key",
+              alg: -7
+            },
+
+            {
+              type: "public-key",
+              alg: -257
+            }
+
+          ],
+
+          authenticatorSelection: {
+
+            authenticatorAttachment:
+              "platform",
+
+            residentKey:
+              "required",
+
+            userVerification:
+              "required"
+
+          },
+
+          timeout: 60000,
+
+          attestation:
+            "none"
+
+        }
+
+      });
+
+
+    if (credential) {
+
+      status.innerHTML =
+        "✅ تم التحقق بنجاح!<br><br>" +
+        "Face ID / بصمة الجهاز تعمل بشكل صحيح على هذا الموقع.<br><br>" +
+        "المهندس: " +
+        engineer;
+
+    }
+
+
+  } catch (error) {
+
+    console.error(error);
+
+
+    status.innerHTML =
+      "❌ لم ينجح اختبار Face ID.<br><br>" +
+      "الخطأ: " +
+      error.name;
+
+    faceButton.disabled = false;
 
   }
 
-
-  /*
-   * البيانات التي ستعود إلى Apps Script
-   */
-
-  const state =
-    encodeState({
-
-      engineer: engineer,
-
-      lat: userLat,
-
-      lng: userLng
-
-    });
-
-
-  /*
-   * إنشاء عنصر Google الرسمي
-   */
-
-  googleLogin.innerHTML = "";
-
-
-  const button =
-    document.createElement("div");
-
-
-  button.className =
-    "g_id_signin";
-
-
-  button.setAttribute(
-    "data-type",
-    "standard"
-  );
-
-
-  button.setAttribute(
-    "data-theme",
-    "outline"
-  );
-
-
-  button.setAttribute(
-    "data-size",
-    "large"
-  );
-
-
-  button.setAttribute(
-    "data-text",
-    "signin_with"
-  );
-
-
-  button.setAttribute(
-    "data-shape",
-    "rectangular"
-  );
-
-
-  button.setAttribute(
-    "data-width",
-    "300"
-  );
-
-
-  button.setAttribute(
-    "data-ux_mode",
-    "redirect"
-  );
-
-
-  button.setAttribute(
-    "data-login_uri",
-    APPS_SCRIPT_URL
-  );
-
-
-  button.setAttribute(
-    "data-state",
-    state
-  );
-
-
-  googleLogin.appendChild(button);
-
-
-  /*
-   * تهيئة Google Identity Services
-   */
-
-  google.accounts.id.initialize({
-
-    client_id:
-      GOOGLE_CLIENT_ID,
-
-    ux_mode:
-      "redirect",
-
-    login_uri:
-      APPS_SCRIPT_URL
-
-  });
-
-
-  /*
-   * رسم زر Google
-   */
-
-  google.accounts.id.renderButton(
-
-    button,
-
-    {
-      type: "standard",
-      theme: "outline",
-      size: "large",
-      text: "signin_with",
-      shape: "rectangular",
-      width: 300
-    }
-
-  );
-
 }
-
 
 </script>
 
