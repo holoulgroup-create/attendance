@@ -1,86 +1,415 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تسجيل الحضور</title>
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>نظام الحضور</title>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client"
+          async
+          defer></script>
+
   <style>
-    body{font-family:Arial,sans-serif;text-align:center;padding:45px 20px;background:#f7f7f7;color:#222}
-    .box{max-width:420px;margin:auto;background:white;padding:30px 20px;border-radius:18px;box-shadow:0 3px 15px rgba(0,0,0,.08)}
-    h1{font-size:26px}
-    #status{font-size:18px;line-height:1.7}
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px 20px;
+      background: #f7f7f7;
+      color: #222;
+    }
+
+    .box {
+      max-width: 420px;
+      margin: auto;
+      background: white;
+      padding: 35px 20px;
+      border-radius: 18px;
+      box-shadow: 0 3px 15px rgba(0,0,0,.08);
+    }
+
+    h1 {
+      font-size: 26px;
+      margin-bottom: 25px;
+    }
+
+    #status {
+      font-size: 18px;
+      line-height: 1.8;
+    }
+
+    #googleLogin {
+      margin-top: 25px;
+      display: none;
+    }
+
+    .loading {
+      font-size: 18px;
+    }
+
   </style>
+
 </head>
+
+
 <body>
+
 <div class="box">
-  <h1>تسجيل الحضور</h1>
-  <p id="status">جاري طلب الوصول إلى موقعك...</p>
+
+  <h1>نظام تسجيل الحضور</h1>
+
+  <p id="status" class="loading">
+    جارٍ التحقق من موقعك...
+  </p>
+
+  <div id="googleLogin"></div>
+
 </div>
 
+
 <script>
+
+
+/* =========================
+   الإعدادات
+========================= */
+
 const APPS_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbxaWPeJ0h5wvbuQgj73v2PittxpgDkkiOxwtOPLRmXmOjuxjjAxIGSLVukOfoLxr6C6/exec";
 
+
+const GOOGLE_CLIENT_ID =
+  "253181627076-bifbqp4qko3m5dj1srk9a7pigvs4bfb.apps.googleusercontent.com";
+
+
 const OFFICE_LAT = 33.4938497;
+
 const OFFICE_LNG = 36.2862717;
+
 const ALLOWED_RADIUS = 100;
 
-const engineer = new URLSearchParams(location.search).get("engineer");
-const status = document.getElementById("status");
 
-function distanceMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2-lat1) * Math.PI/180;
-  const dLon = (lon2-lon1) * Math.PI/180;
-  const a =
-    Math.sin(dLat/2)**2 +
-    Math.cos(lat1*Math.PI/180) *
-    Math.cos(lat2*Math.PI/180) *
-    Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
+/* اسم المهندس الموجود داخل QR */
+
+const engineer =
+  new URLSearchParams(location.search)
+    .get("engineer");
+
+
+const status =
+  document.getElementById("status");
+
+
+const googleLogin =
+  document.getElementById("googleLogin");
+
+
+/* سنحتفظ بإحداثيات GPS */
+
+let userLat = null;
+
+let userLng = null;
+
+
+/* =========================
+   التأكد من وجود اسم المهندس
+========================= */
 
 if (!engineer) {
-  status.textContent = "❌ رابط غير صالح.";
-} else if (!navigator.geolocation) {
-  status.textContent = "❌ جهازك لا يدعم تحديد الموقع.";
+
+  status.innerHTML =
+    "❌ رمز QR غير صحيح.";
+
 } else {
+
+  startLocationCheck();
+
+}
+
+
+/* =========================
+   حساب المسافة
+========================= */
+
+function distanceMeters(
+  lat1,
+  lon1,
+  lat2,
+  lon2
+) {
+
+  const R = 6371000;
+
+  const dLat =
+    (lat2 - lat1) *
+    Math.PI / 180;
+
+  const dLon =
+    (lon2 - lon1) *
+    Math.PI / 180;
+
+
+  const a =
+    Math.sin(dLat / 2) *
+    Math.sin(dLat / 2) +
+
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+
+  return R * c;
+
+}
+
+
+/* =========================
+   فحص الموقع
+========================= */
+
+function startLocationCheck() {
+
+  status.innerHTML =
+    "📍 جارٍ تحديد موقعك...";
+
+  if (!navigator.geolocation) {
+
+    status.innerHTML =
+      "❌ جهازك لا يدعم تحديد الموقع.";
+
+    return;
+
+  }
+
+
   navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const distance = distanceMeters(lat,lng,OFFICE_LAT,OFFICE_LNG);
+
+    function(position) {
+
+      userLat =
+        position.coords.latitude;
+
+      userLng =
+        position.coords.longitude;
+
+
+      const distance =
+        distanceMeters(
+          userLat,
+          userLng,
+          OFFICE_LAT,
+          OFFICE_LNG
+        );
+
+
+      /* خارج الموقع */
 
       if (distance > ALLOWED_RADIUS) {
+
         status.innerHTML =
-          "❌ لم يتم تسجيل الحضور.<br>" +
+          "❌ لم يتم تسجيل الحضور.<br><br>" +
           "أنت خارج موقع العمل.<br>" +
-          "المسافة التقريبية: " + Math.round(distance) + " متر";
+          "المسافة التقريبية: " +
+          Math.round(distance) +
+          " متر";
+
         return;
+
       }
 
-      status.textContent = "📍 تم التحقق من الموقع، جاري التسجيل...";
 
-      const url =
-        APPS_SCRIPT_URL +
-        "?engineer=" + encodeURIComponent(engineer) +
-        "&lat=" + encodeURIComponent(lat) +
-        "&lng=" + encodeURIComponent(lng);
+      /* داخل الموقع */
 
-      window.location.replace(url);
-    },
-    function(error) {
       status.innerHTML =
-        "❌ يجب السماح بالوصول إلى الموقع حتى يتم تسجيل الحضور.<br>" +
-        "إذا كنت قد رفضت الإذن، فعّله من إعدادات المتصفح ثم أعد مسح QR.";
+        "📍 تم التحقق من موقعك بنجاح.<br>" +
+        "المسافة: " +
+        Math.round(distance) +
+        " متر<br><br>" +
+        "🔐 يرجى تسجيل الدخول بحساب Google الخاص بك.";
+
+
+      showGoogleLogin();
+
     },
+
+
+    function(error) {
+
+      status.innerHTML =
+        "❌ تعذر الوصول إلى موقعك.<br><br>" +
+        "تأكد من السماح للموقع لهذا المتصفح ثم أعد المحاولة.";
+
+    },
+
+
     {
       enableHighAccuracy: true,
       timeout: 15000,
       maximumAge: 0
     }
+
   );
+
 }
+
+
+/* =========================
+   Google Login
+========================= */
+
+function showGoogleLogin() {
+
+  googleLogin.style.display = "block";
+
+
+  /* انتظر تحميل Google */
+
+  if (
+    typeof google === "undefined" ||
+    !google.accounts ||
+    !google.accounts.id
+  ) {
+
+    setTimeout(showGoogleLogin, 500);
+
+    return;
+
+  }
+
+
+  google.accounts.id.initialize({
+
+    client_id: GOOGLE_CLIENT_ID,
+
+    callback: handleGoogleLogin
+
+  });
+
+
+  google.accounts.id.renderButton(
+
+    googleLogin,
+
+    {
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      shape: "rectangular",
+      width: 300
+    }
+
+  );
+
+}
+
+
+/* =========================
+   بعد تسجيل الدخول
+========================= */
+
+function handleGoogleLogin(response) {
+
+  status.innerHTML =
+    "🔐 تم تسجيل الدخول.<br>" +
+    "جارٍ التحقق من الحساب...";
+
+
+  /*
+   * إرسال البيانات إلى Apps Script
+   * باستخدام POST
+   */
+
+  const form =
+    document.createElement("form");
+
+  form.method = "POST";
+
+  form.action = APPS_SCRIPT_URL;
+
+
+  /* المهندس */
+
+  addField(
+    form,
+    "engineer",
+    engineer
+  );
+
+
+  /* GPS */
+
+  addField(
+    form,
+    "lat",
+    userLat
+  );
+
+
+  addField(
+    form,
+    "lng",
+    userLng
+  );
+
+
+  /* Google ID Token */
+
+  addField(
+    form,
+    "credential",
+    response.credential
+  );
+
+
+  document.body.appendChild(form);
+
+  form.submit();
+
+}
+
+
+/* =========================
+   إضافة حقل POST
+========================= */
+
+function addField(
+  form,
+  name,
+  value
+) {
+
+  const input =
+    document.createElement("input");
+
+  input.type = "hidden";
+
+  input.name = name;
+
+  input.value = value;
+
+  form.appendChild(input);
+
+}
+
+
 </script>
+
 </body>
+
 </html>
