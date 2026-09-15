@@ -95,7 +95,7 @@ const OFFICE_LNG = 36.2862717;
 const ALLOWED_RADIUS = 100;
 
 
-/* اسم المهندس الموجود داخل QR */
+/* اسم المهندس من QR */
 
 const engineer =
   new URLSearchParams(location.search)
@@ -110,7 +110,7 @@ const googleLogin =
   document.getElementById("googleLogin");
 
 
-/* سنحتفظ بإحداثيات GPS */
+/* إحداثيات المستخدم */
 
 let userLat = null;
 
@@ -118,7 +118,7 @@ let userLng = null;
 
 
 /* =========================
-   التأكد من وجود اسم المهندس
+   التأكد من QR
 ========================= */
 
 if (!engineer) {
@@ -219,7 +219,7 @@ function startLocationCheck() {
         );
 
 
-      /* خارج الموقع */
+      /* خارج موقع العمل */
 
       if (distance > ALLOWED_RADIUS) {
 
@@ -271,15 +271,41 @@ function startLocationCheck() {
 
 
 /* =========================
-   Google Login - Redirect
+   تحويل النص إلى Base64
+   مع دعم اللغة العربية
+========================= */
+
+function encodeState(data) {
+
+  const json =
+    JSON.stringify(data);
+
+  const bytes =
+    new TextEncoder().encode(json);
+
+  let binary = "";
+
+  bytes.forEach(function(byte) {
+
+    binary +=
+      String.fromCharCode(byte);
+
+  });
+
+  return btoa(binary);
+
+}
+
+
+/* =========================
+   Google Login - HTML API
 ========================= */
 
 function showGoogleLogin() {
 
-  googleLogin.style.display = "block";
+  googleLogin.style.display =
+    "block";
 
-
-  /* انتظر تحميل Google */
 
   if (
     typeof google === "undefined" ||
@@ -287,7 +313,10 @@ function showGoogleLogin() {
     !google.accounts.id
   ) {
 
-    setTimeout(showGoogleLogin, 500);
+    setTimeout(
+      showGoogleLogin,
+      500
+    );
 
     return;
 
@@ -295,51 +324,121 @@ function showGoogleLogin() {
 
 
   /*
-   * نحفظ معلومات المهندس والموقع داخل state
-   * حتى تصل إلى Apps Script بعد تسجيل الدخول.
+   * البيانات التي ستعود إلى Apps Script
    */
 
-  const stateData = JSON.stringify({
+  const state =
+    encodeState({
 
-    engineer: engineer,
+      engineer: engineer,
 
-    lat: userLat,
+      lat: userLat,
 
-    lng: userLng
+      lng: userLng
+
+    });
+
+
+  /*
+   * إنشاء عنصر Google الرسمي
+   */
+
+  googleLogin.innerHTML = "";
+
+
+  const button =
+    document.createElement("div");
+
+
+  button.className =
+    "g_id_signin";
+
+
+  button.setAttribute(
+    "data-type",
+    "standard"
+  );
+
+
+  button.setAttribute(
+    "data-theme",
+    "outline"
+  );
+
+
+  button.setAttribute(
+    "data-size",
+    "large"
+  );
+
+
+  button.setAttribute(
+    "data-text",
+    "signin_with"
+  );
+
+
+  button.setAttribute(
+    "data-shape",
+    "rectangular"
+  );
+
+
+  button.setAttribute(
+    "data-width",
+    "300"
+  );
+
+
+  button.setAttribute(
+    "data-ux_mode",
+    "redirect"
+  );
+
+
+  button.setAttribute(
+    "data-login_uri",
+    APPS_SCRIPT_URL
+  );
+
+
+  button.setAttribute(
+    "data-state",
+    state
+  );
+
+
+  googleLogin.appendChild(button);
+
+
+  /*
+   * تهيئة Google Identity Services
+   */
+
+  google.accounts.id.initialize({
+
+    client_id:
+      GOOGLE_CLIENT_ID,
+
+    ux_mode:
+      "redirect",
+
+    login_uri:
+      APPS_SCRIPT_URL
 
   });
 
 
   /*
-   * تحويل البيانات إلى Base64
+   * رسم زر Google
    */
-
-  const state =
-    btoa(
-      unescape(
-        encodeURIComponent(stateData)
-      )
-    );
-
-
-  google.accounts.id.initialize({
-
-    client_id: GOOGLE_CLIENT_ID,
-
-    ux_mode: "redirect",
-
-    login_uri: APPS_SCRIPT_URL,
-
-    state: state
-
-  });
-
 
   google.accounts.id.renderButton(
 
-    googleLogin,
+    button,
 
     {
+      type: "standard",
       theme: "outline",
       size: "large",
       text: "signin_with",
